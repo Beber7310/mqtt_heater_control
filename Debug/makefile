@@ -38,7 +38,7 @@ $(wildcard ../makefile.init) \
 $(wildcard ../makefile.targets) \
 
 
-BUILD_ARTIFACT_NAME := heater
+BUILD_ARTIFACT_NAME := mqtt_heater_control
 BUILD_ARTIFACT_EXTENSION := elf
 BUILD_ARTIFACT_PREFIX :=
 BUILD_ARTIFACT := $(BUILD_ARTIFACT_PREFIX)$(BUILD_ARTIFACT_NAME)$(if $(BUILD_ARTIFACT_EXTENSION),.$(BUILD_ARTIFACT_EXTENSION),)
@@ -50,23 +50,23 @@ all:
 	+@$(MAKE) --no-print-directory main-build && $(MAKE) --no-print-directory post-build
 
 # Main-build Target
-main-build: heater.elf
+main-build: mqtt_heater_control.elf
 
 # Tool invocations
-heater.elf: $(OBJS) $(USER_OBJS) makefile $(OPTIONAL_TOOL_DEPS)
+mqtt_heater_control.elf: $(OBJS) $(USER_OBJS) makefile $(OPTIONAL_TOOL_DEPS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: Cross G++ Linker'
-	arm-linux-gnueabihf-g++ -L"C:\Users\bdosd\eclipse-workspace\heater\lib" -o "heater.elf" $(OBJS) $(USER_OBJS) $(LIBS) -lmosquitto -lpthread
+	arm-linux-gnueabihf-g++ -L"C:\Users\bdosd\git\mqtt_heater_control\lib" -o "mqtt_heater_control.elf" $(OBJS) $(USER_OBJS) $(LIBS) -lmosquitto -lpthread
 	@echo 'Finished building target: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) heater.elf
+	-$(RM) mqtt_heater_control.elf
 	-@echo ' '
 
 post-build:
-	-C:/Users/bdosd/eclipse-workspace/heater\utils\deploy.bat  "C:/Users/bdosd/eclipse-workspace/heater/Debug/heater.elf" /home/pi/projects/HomeControlRemote.a
+	-C:/Users/bdosd/git/mqtt_heater_control\utils\deploy.bat  "C:/Users/bdosd/git/mqtt_heater_control/Debug/mqtt_heater_control.elf" /home/pi/projects/HomeControlRemote.a
 	-@echo ' '
 
 .PHONY: all clean dependents main-build post-build
