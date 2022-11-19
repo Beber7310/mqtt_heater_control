@@ -18,6 +18,9 @@ void* uart_rf_loop(void *arg);
 void SerialFilPiloteSendCommande(char cmd);
 int SendBlyssCmd(int id,int value);
 
+int SerialFilPilote(void);
+int SerialRF(void);
+
 
 #ifdef __cplusplus
 }

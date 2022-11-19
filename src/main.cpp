@@ -48,11 +48,13 @@ int main() {
 
 	cout << "Hello Arm World!" << endl;
 
+	SerialFilPilote();
 	if (pthread_create(&th_uart_fp, NULL, uart_filPilote_loop,(void*) tube[1]) < 0) {
 		printf("START UP pthread_create error for thread uart_filPilote_loop");
 		exit(1);
 	}
 
+	SerialRF();
 	if (pthread_create(&th_uart_rf, NULL, uart_rf_loop,(void*) tube[1]) < 0) {
 			printf("START UP pthread_create error for thread uart_rf_loop");
 			exit(1);
