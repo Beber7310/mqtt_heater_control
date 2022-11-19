@@ -56,7 +56,7 @@ main-build: mqtt_heater_control.elf
 mqtt_heater_control.elf: $(OBJS) $(USER_OBJS) makefile $(OPTIONAL_TOOL_DEPS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: Cross G++ Linker'
-	arm-linux-gnueabihf-g++ -L"C:\Users\bdosd\git\mqtt_heater_control\lib" -o "mqtt_heater_control.elf" $(OBJS) $(USER_OBJS) $(LIBS) -lmosquitto -lpthread
+	arm-linux-gnueabihf-g++ -L"C:\Users\bdosd\git\mqtt_heater_control\lib" -o "mqtt_heater_control.elf" $(OBJS) $(USER_OBJS) $(LIBS) -lpthread -lmosquitto
 	@echo 'Finished building target: $@'
 	@echo ' '
 
@@ -66,6 +66,7 @@ clean:
 	-@echo ' '
 
 post-build:
+	-@echo 'C:\Users\Bertrand\workspace\HomeControl'
 	-C:/Users/bdosd/git/mqtt_heater_control\utils\deploy.bat  "C:/Users/bdosd/git/mqtt_heater_control/Debug/mqtt_heater_control.elf" /home/pi/projects/HomeControlRemote.a
 	-@echo ' '
 

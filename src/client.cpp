@@ -7,8 +7,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <semaphore.h>
+
 #include "SerialManagement.h"
 
+extern sem_t semaphore;
 int cmd_radiateur = 0;
 
 /* Callback called when the client receives a CONNACK message from the broker. */
@@ -99,22 +102,21 @@ int get_power(int pipe) {
 	 */
 
 	char PAYLOAD[100];
-	read(pipe, PAYLOAD, 6);
-	return atoi(PAYLOAD);
+	read(pipe, PAYLOAD, 8);
+	return atoi(&PAYLOAD[2]);
 
 }
 
-/* This function pretends to read some data from a sensor and publish it.*/
-void publish_sensor_data(struct mosquitto *mosq, int pipe) {
+void publish_power_data(struct mosquitto *mosq, int power) {
 	char payload[20];
-	int power;
+
 	int rc;
 	static int sampleCount = 0;
 	static float powerAcc = 0;
 	static float shared_power = 0;
 
 	/* Get our pretend data */
-	power = get_power(pipe);
+
 	powerAcc += power;
 	sampleCount++;
 
@@ -122,15 +124,6 @@ void publish_sensor_data(struct mosquitto *mosq, int pipe) {
 	 * application dependent. */
 	snprintf(payload, sizeof(payload), "%d", power);
 
-	/* Publish the message
-	 * mosq - our client instance
-	 * *mid = NULL - we don't want to know what the message id for this message is
-	 * topic = "example/powererature" - the topic on which this message will be published
-	 * payloadlen = strlen(payload) - the length of our payload in bytes
-	 * payload - the actual payload
-	 * qos = 2 - publish with QoS 2 for this example
-	 * retain = false - do not use the retained message feature for this message
-	 */
 	rc = mosquitto_publish(mosq, NULL, "power/watt", strlen(payload), payload,
 			2, false);
 	if (rc != MOSQ_ERR_SUCCESS) {
@@ -153,6 +146,56 @@ void publish_sensor_data(struct mosquitto *mosq, int pipe) {
 
 }
 
+void publish_temperature_data(struct mosquitto *mosq, char* thermometre,char* temp) {
+	char topic[100];
+
+	int rc;
+
+	/* Get our pretend data */
+
+	/* Print it to a string for easy human reading - payload format is highly
+	 * application dependent. */
+	sprintf(topic,"thermometre/%s", thermometre);
+
+	rc = mosquitto_publish(mosq, NULL, topic, strlen(temp), temp,
+			2, false);
+	if (rc != MOSQ_ERR_SUCCESS) {
+		fprintf(stderr, "Error publishing: %s\n", mosquitto_strerror(rc));
+	}
+
+
+}
+
+/* This function pretends to read some data from a sensor and publish it.*/
+void publish_sensor_data(struct mosquitto *mosq, int pipe) {
+	char topic[100];
+	char payload[100];
+	read(pipe, payload, 2);
+
+	printf("<%s>\n",payload);
+
+	if (strncmp(payload, "A:", 2) == 0) {
+		read(pipe, payload, 6);
+		publish_power_data(mosq, atoi(payload));
+	}else if (strncmp(payload, "C:", 2) == 0) {
+		read(pipe, topic, 7);
+		topic[7]=0;
+		printf("<%s>\n",topic);
+
+		read(pipe, payload, 1); // drop the space
+		read(pipe, payload, 5);
+
+		payload[5]=0;
+		printf("<%s>\n",topic);
+		printf("<%s>\n",payload);
+
+		publish_temperature_data(mosq, topic,payload);
+	} else {
+		printf("Error while reading pipe");
+	}
+
+}
+
 /* Callback called when the broker sends a SUBACK in response to a SUBSCRIBE. */
 void on_subscribe(struct mosquitto *mosq, void *obj, int mid, int qos_count,
 		const int *granted_qos) {
@@ -163,7 +206,7 @@ void on_subscribe(struct mosquitto *mosq, void *obj, int mid, int qos_count,
 	 * SUBSCRIBE can contain many topics at once, so this is one way to check
 	 * them all. */
 	for (i = 0; i < qos_count; i++) {
-		printf("on_subscribe: %d:granted qos = %d\n", i, granted_qos[i]);
+		// printf("on_subscribe: %d:granted qos = %d\n", i, granted_qos[i]);
 		if (granted_qos[i] <= 2) {
 			have_subscription = true;
 		}
@@ -186,31 +229,22 @@ void on_message(struct mosquitto *mosq, void *obj,
 	if (strncmp(msg->topic, "radiateur/power", strlen("radiateur/power"))
 			== 0) {
 		idx = msg->topic[strlen("radiateur/power_")] - '0';
-		printf("idx %d\n", idx);
 
 		if ((idx >= 0) && (idx <= 3)) {
 			if (strncmp((char*) msg->payload, "ON", 2) == 0) {
-				printf(">ON");
 				//Inverted on purpose as a tension "freeze" the heater
 				cmd_radiateur &= ~(0x01 << idx);
 			} else {
-				printf(">OFF");
 				//Inverted on purpose as a tension "freeze" the heater
 				cmd_radiateur |= 0x01 << idx;
 			}
-			printf("cmd %i\n", cmd_radiateur);
-
 		}
 		if (idx == 4) {
 			if (strncmp((char*) msg->payload, "ON", 2) == 0) {
-				printf(">ON");
 				cmd_radiateur |= 0x01 << idx;
 			} else {
-				printf(">OFF");
 				cmd_radiateur &= ~(0x01 << idx);
 			}
-			printf("cmd %i\n", cmd_radiateur);
-
 		}
 
 	}

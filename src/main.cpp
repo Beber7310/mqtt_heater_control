@@ -38,11 +38,13 @@ int tube[2];
 //
 
 int main_mqtt(int pipe);
+sem_t semaphore;
 
 int main() {
 	pipe(tube);
 
-	pthread_t th_uart_fp;
+	pthread_t th_uart_fp,th_uart_rf;
+	sem_init(&semaphore, 0, 1);
 
 	cout << "Hello Arm World!" << endl;
 
@@ -50,6 +52,12 @@ int main() {
 		printf("START UP pthread_create error for thread uart_filPilote_loop");
 		exit(1);
 	}
+
+	if (pthread_create(&th_uart_rf, NULL, uart_rf_loop,(void*) tube[1]) < 0) {
+			printf("START UP pthread_create error for thread uart_rf_loop");
+			exit(1);
+		}
+
 
 	main_mqtt( tube[0]);
 

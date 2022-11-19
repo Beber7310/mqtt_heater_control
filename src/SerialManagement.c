@@ -10,7 +10,6 @@
 #include <pthread.h>
 #include <semaphore.h>
 
-
 #include "main.h"
 
 #include "SerialManagement.h"
@@ -21,20 +20,20 @@
  *      Author: Bertrand
  */
 
+extern sem_t semaphore;
+
 int fd_fil_pilote;
 #define BAUDRATE B9600
 #define FIL_PILOTE_DEVICE "/dev/ttyACM0"
 
 int fd_rf;
 #define BAUDRATE B9600
-#define RF_DEVICE "/dev/ttyACM0"
-
+#define RF_DEVICE "/dev/ttyACM1"
 
 // extern int shared_power;
 // extern sem_t sem_power;
 
-int SerialFilPilote(void)
-{
+int SerialFilPilote(void) {
 
 	struct termios oldtio, newtio;
 
@@ -44,8 +43,7 @@ int SerialFilPilote(void)
 	 re�oit un caract�re CTRL-C.
 	 */
 	fd_fil_pilote = open(FIL_PILOTE_DEVICE, O_RDWR | O_NOCTTY);
-	if (fd_fil_pilote < 0)
-	{
+	if (fd_fil_pilote < 0) {
 		perror(FIL_PILOTE_DEVICE);
 		exit(-1);
 	}
@@ -62,7 +60,7 @@ int SerialFilPilote(void)
 	 CLOCAL  : connexion locale, pas de contr�le par le modem
 	 CREAD   : permet la r�ception des caract�res
 	 */
-	newtio.c_cflag = BAUDRATE |  CS8 | CLOCAL | CREAD;
+	newtio.c_cflag = BAUDRATE | CS8 | CLOCAL | CREAD;
 
 	/*
 	 IGNPAR  : ignore les octets ayant une erreur de parit�.
@@ -137,51 +135,124 @@ int SerialFilPilote(void)
 	return 0;
 }
 
-void SerialFilPiloteSendCommande(char cmd)
-{
-	printf("cmd %i\n", cmd);
+void SerialFilPiloteSendCommande(char cmd) {
 	write(fd_fil_pilote, &cmd, 1);
 }
 
-void * uart_filPilote_loop(void * arg)
-{
+void* uart_filPilote_loop(void *arg) {
 	char str[255];
 	char buf[255];
 	int index = 0;
 
-
 	int res;
 	int pipe;
 
-
-
 	SerialFilPilote();
 
-	pipe = (int)arg;
-	while (1)
-	{
+	pipe = (int) arg;
+	while (1) {
 		res = read(fd_fil_pilote, &buf[index], 255);
 		index += res;
 
-		for (int ii = 0; ii < sizeof(buf); ii++)
-		{
-			if ((buf[ii] == '\n') || (buf[ii] == '\r'))
-			{
+		for (int ii = 0; ii < sizeof(buf); ii++) {
+			if ((buf[ii] == '\n') || (buf[ii] == '\r')) {
 				buf[ii] = 0;
+				index = 0;
+				if (buf[0] == 'A') {
+					sprintf(str, "A:%i", (int) (23.0f * atof(buf + 2)));
 
+					sem_wait(&semaphore);
+					write(pipe, str, 8);
+					sem_post(&semaphore);
+				}
+			}
+		}
+	}
+}
+
+int SerialRF(void) {
+
+	struct termios oldtio, newtio;
+
+	/*
+	 On ouvre le p�riph�rique du modem en lecture/�criture, et pas comme
+	 terminal de contr�le, puisque nous ne voulons pas �tre termin� si l'on
+	 re�oit un caract�re CTRL-C.
+	 */
+	fd_rf = open(RF_DEVICE, O_RDWR | O_NOCTTY);
+	if (fd_rf < 0) {
+		perror(RF_DEVICE);
+		exit(-1);
+	}
+
+	tcgetattr(fd_rf, &oldtio);
+	bzero(&newtio, sizeof(newtio));
+
+	newtio.c_cflag = BAUDRATE | CRTSCTS | CS8 | CLOCAL | CREAD;
+
+	newtio.c_iflag = IGNPAR | ICRNL;
+
+	newtio.c_oflag = 0;
+
+	newtio.c_lflag = ICANON;
+
+	newtio.c_cc[VINTR] = 0;
+	newtio.c_cc[VQUIT] = 0;
+	newtio.c_cc[VERASE] = 0;
+	newtio.c_cc[VKILL] = 0;
+	newtio.c_cc[VEOF] = 4;
+	newtio.c_cc[VTIME] = 0;
+	newtio.c_cc[VMIN] = 1;
+	newtio.c_cc[VSWTC] = 0;
+	newtio.c_cc[VSTART] = 0;
+	newtio.c_cc[VSTOP] = 0;
+	newtio.c_cc[VSUSP] = 0;
+	newtio.c_cc[VEOL] = 0;
+	newtio.c_cc[VREPRINT] = 0;
+	newtio.c_cc[VDISCARD] = 0;
+	newtio.c_cc[VWERASE] = 0;
+	newtio.c_cc[VLNEXT] = 0;
+	newtio.c_cc[VEOL2] = 0;
+
+	tcflush(fd_rf, TCIFLUSH);
+	tcsetattr(fd_rf, TCSANOW, &newtio);
+
+	return 0;
+}
+
+void* uart_rf_loop(void *arg) {
+	char buf[256];
+	char bufpipe[256];
+	int pipe = (int) arg;
+	int index = 0;
+	int res;
+
+	SerialRF();
+
+	while (1) {
+
+		res = read(fd_rf, &buf[index], 255);
+		// printf(">%s \n", &buf[index]);
+		index += res;
+
+		//write(pipe, buf, res);
+
+		for (int ii = 0; ii < sizeof(buf); ii++) {
+			if ((buf[ii] == '\n') || (buf[ii] == '\r')) {
+				buf[ii] = 0;
 				index = 0;
 
-				if (buf[0] == 'A')
-				{
-					// data comming from arduino is 100ma by unit.
-					power.current = atof(buf + 2) / 10;
-					power.power = 230 * power.current;
-
-
-					sprintf(str,"%i", (int)power.power);
-					write(pipe, str, 6);
-
+				if (buf[1] == 'C') {
+					buf[16] = 0;
+					float temperature = strtol(buf + 13, 0, 16) / 10.0f;
+					buf[10]=0;
+					//C:6503804 17.50
+					sprintf(bufpipe,"%s %2.2f\n", &buf[1], temperature);
+					sem_wait(&semaphore);
+					write(pipe, bufpipe, 15);
+					sem_post(&semaphore);
 				}
+				memset(buf, 0, sizeof(buf));
 			}
 		}
 	}

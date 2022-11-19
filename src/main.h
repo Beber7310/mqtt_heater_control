@@ -19,8 +19,6 @@ typedef struct {
 	#define EXT extern
 #endif
 
-EXT power_t			power;
-
 
 
 #endif /* MAIN_H_ */
